@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#b5651d">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
@@ -17,69 +17,122 @@
 <title>Librino</title>
 <style>
 :root{--bg:#faf6f1;--card:#fff;--ink:#3a3128;--sub:#8a7b6c;--accent:#b5651d;--line:#e6dccf}
-*{box-sizing:border-box}
-body{margin:0;font-family:"Hiragino Sans","Yu Gothic",sans-serif;background:var(--bg);color:var(--ink)}
-header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-h1{font-size:18px;margin:0 8px 0 0;display:flex;align-items:baseline;gap:8px}
-.logo{font-family:"Pacifico",cursive;font-weight:400;font-size:26px;color:var(--accent);line-height:1}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font-family:"Hiragino Sans","Yu Gothic",sans-serif;font-size:15px;line-height:1.5;background:var(--bg);color:var(--ink)}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px max(16px,env(safe-area-inset-right),calc((100% - 960px)/2 + 16px)) 10px max(16px,env(safe-area-inset-left),calc((100% - 960px)/2 + 16px))}
+.bar{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.grow{flex:1}
+h1{font-size:18px;margin:0;display:flex;align-items:baseline;gap:8px}
+.logo{font-family:"Pacifico",cursive;font-weight:400;font-size:28px;color:var(--accent);line-height:1.1}
 h1 small{font-size:11px;font-weight:400;color:var(--sub)}
-input,select,textarea,button{font:inherit;color:inherit}
-input,select,textarea{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;width:100%}
-textarea{resize:vertical}
-button{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:6px;padding:6px 12px;cursor:pointer}
+input,select,textarea,button{font:inherit;font-size:16px;color:inherit}
+input,select,textarea{border:1px solid var(--line);border-radius:8px;padding:9px 10px;background:#fff;width:100%;min-height:44px}
+select{padding:9px 6px;font-size:15px}
+textarea{min-height:0;resize:vertical;line-height:1.55}
+button{white-space:nowrap;border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer}
 button.primary{background:var(--accent);color:#fff}
 button.danger{border-color:#b33;color:#b33}
-header input,header select{width:auto}
-main{max-width:960px;margin:0 auto;padding:16px}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
-.card{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer}
-.card:hover{border-color:var(--accent)}
-.cover{width:70px;height:100px;flex:none;border-radius:4px;background:#eee center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--sub)}
-.meta{min-width:0;font-size:13px}
-.meta .t{font-weight:bold;font-size:14px}
-.meta .s{color:var(--sub)}
-.stars{color:#e0a100;letter-spacing:1px}
-.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-right:4px;color:var(--sub)}
-dialog{border:none;border-radius:12px;max-width:640px;width:calc(100% - 24px);padding:16px;max-height:92vh}
-dialog::backdrop{background:#0005}
-.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
+button.icon{padding:0;width:44px;font-size:20px;border-color:var(--line);color:var(--ink)}
+button.small{min-height:36px;font-size:13px;padding:4px 10px}
+#cloud{font-size:12px;color:var(--sub);cursor:pointer;border:1px solid var(--line);border-radius:16px;padding:6px 10px;background:#fff}
+main{max-width:960px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) calc(110px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
+.filters{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px}
+.card{min-width:0;display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
+.card:active{background:#fdf8f2}
+.cover{width:72px;height:104px;flex:none;border-radius:5px;background:#eee center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--sub)}
+.meta{min-width:0;flex:1;font-size:13px}
+.meta .t{font-weight:bold;font-size:15px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+.meta .s{color:var(--sub);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stars{color:#e0a100;letter-spacing:1px;font-size:16px}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 7px;margin-right:4px;color:var(--sub)}
+.ghead{grid-column:1/-1;font-weight:bold;color:var(--accent);border-bottom:2px solid var(--line);padding:4px 2px;margin-top:6px}
+.fab{position:fixed;right:max(16px,env(safe-area-inset-right));bottom:calc(16px + env(safe-area-inset-bottom));width:60px;height:60px;min-height:0;border-radius:30px;font-size:32px;line-height:1;padding:0;background:var(--accent);color:#fff;border-color:var(--accent);box-shadow:0 4px 14px #0004;z-index:6}
+dialog{border:none;border-radius:14px;max-width:640px;width:calc(100% - 24px);padding:0;max-height:92vh;overflow:auto;color:var(--ink)}
+dialog::backdrop{background:#0006}
+.pad{padding:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:12px;color:var(--sub);margin:12px 0 4px}
 .top{display:flex;gap:12px}
 .top .cover{width:90px;height:128px}
-.star-input span{font-size:28px;cursor:pointer;color:#ccc}
+details{margin-top:10px;border:1px solid var(--line);border-radius:8px;padding:0 10px}
+details[open]{padding-bottom:10px}
+summary{cursor:pointer;font-size:13px;color:var(--sub);padding:0;min-height:44px;display:flex;align-items:center}
+.star-input{display:flex;align-items:center;flex-wrap:wrap}
+.star-input span{font-size:36px;padding:0 4px;line-height:1.2;cursor:pointer;color:#ccc}
 .star-input span.on{color:#e0a100}
-.actions{display:flex;gap:8px;justify-content:space-between;margin-top:14px}
+.actions{display:flex;gap:8px;justify-content:space-between;align-items:center;position:sticky;bottom:0;background:#fff;margin:16px -16px 0;padding:10px 16px calc(10px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.actions span{display:flex;gap:8px}
 .hint{font-size:12px;color:var(--sub)}
 .empty{text-align:center;color:var(--sub);padding:40px 0}
-.ghead{grid-column:1/-1;font-weight:bold;color:var(--accent);border-bottom:2px solid var(--line);padding:4px 2px;margin-top:6px}
-#cloud{font-size:12px;color:var(--sub);cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:2px 8px;background:#fff}
-@media(max-width:520px){.row{grid-template-columns:1fr}}
+.note-text{white-space:pre-wrap;word-break:break-word;margin:0}
+.vtop{display:flex;gap:14px}
+.vtop .cover{width:110px;height:158px}
+.vtitle{font-size:18px;font-weight:bold;line-height:1.35;margin:0 0 4px;word-break:break-word}
+h4{margin:18px 0 6px;font-size:13px;color:var(--accent)}
+@media(max-width:640px){
+  dialog{width:100%;max-width:100%;height:100dvh;max-height:100dvh;margin:0;border-radius:0}
+  .pad{padding:16px max(16px,env(safe-area-inset-right)) 16px max(16px,env(safe-area-inset-left))}
+  .actions{margin-left:-16px;margin-right:-16px}
+}
+@media(max-width:520px){
+  .row{grid-template-columns:1fr}
+  .grid{grid-template-columns:minmax(0,1fr)}
+  .top{flex-direction:column}
+  .top>div:first-child{display:flex;align-items:flex-end;gap:12px}
+  .vtop .cover{width:96px;height:138px}
+}
 </style>
 </head>
 <body>
 <header>
-  <h1><span class="logo">Librino</span><small>読書ノート</small></h1>
-  <button class="primary" id="addBtn">＋ 追加</button>
-  <input id="q" placeholder="検索(題名・著者・感想)" style="flex:1;min-width:140px">
-  <select id="fGenre"><option value="">全ジャンル</option></select>
-  <select id="fStatus"><option value="">全状態</option><option>未読</option><option>読書中</option><option>読了</option></select>
-  <select id="sort">
-    <option value="created">登録順</option>
-    <option value="read">読了日順</option>
-    <option value="rating">評価順</option>
-    <option value="title">題名順(50音)</option>
-    <option value="author">著者順(50音)</option>
-  </select>
-  <span id="cloud" title="設定を開く">☁ 未接続</span>
-  <button id="setBtn">⚙</button>
+  <div class="bar">
+    <h1><span class="logo">Librino</span><small>読書ノート</small></h1>
+    <span class="grow"></span>
+    <span id="cloud" title="設定を開く">☁ 未接続</span>
+    <button id="setBtn" class="icon" aria-label="設定">⚙</button>
+  </div>
+  <input id="q" type="search" placeholder="🔍 題名・著者・感想で検索">
 </header>
 <main>
+  <div class="filters">
+    <select id="fGenre"><option value="">全ジャンル</option></select>
+    <select id="fStatus"><option value="">全状態</option><option>未読</option><option>読書中</option><option>読了</option></select>
+    <select id="sort">
+      <option value="created">登録順</option>
+      <option value="read">読了日順</option>
+      <option value="rating">評価順</option>
+      <option value="title">題名順(50音)</option>
+      <option value="author">著者順(50音)</option>
+    </select>
+  </div>
   <div id="yomiWarn" class="hint" style="margin-bottom:8px"></div>
   <div id="list" class="grid"></div>
 </main>
+<button id="addBtn" class="fab" aria-label="本を追加">＋</button>
+
+<!-- 詳細(読む画面) -->
+<dialog id="viewDlg">
+  <div class="pad">
+    <div class="vtop">
+      <div class="cover" id="vCover">表紙なし</div>
+      <div style="min-width:0;flex:1">
+        <p class="vtitle" id="vTitle"></p>
+        <div class="hint" id="vAuthor"></div>
+        <div class="stars" id="vStars" style="margin-top:6px"></div>
+        <div id="vTags" style="margin-top:4px"></div>
+        <div class="hint" id="vDates" style="margin-top:6px"></div>
+      </div>
+    </div>
+    <h4>感想</h4><p class="note-text" id="vNote"></p>
+    <h4>あらすじ</h4><p class="note-text" id="vSyn"></p>
+    <div class="actions"><button id="vClose">閉じる</button><button id="vEdit" class="primary">編集</button></div>
+  </div>
+</dialog>
 
 <!-- 設定 -->
-<dialog id="setDlg">
+<dialog id="setDlg"><div class="pad">
   <h3 style="margin-top:0">設定</h3>
   <label>Google Client ID(READMEの手順で取得)</label>
   <input id="clientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
@@ -96,12 +149,12 @@ label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
     <button id="importBtn">読み込み</button>
     <input type="file" id="importFile" accept=".json" hidden>
   </div>
-  <div class="actions"><span></span><button id="setClose">閉じる</button></div>
-</dialog>
+  <div class="actions"><span></span><button id="setClose" class="primary">閉じる</button></div>
+</div></dialog>
 
 <!-- 本の編集 -->
 <dialog id="dlg">
-  <form id="form" method="dialog">
+  <form id="form" method="dialog" class="pad">
     <label>ISBN または 題名で検索して自動入力</label>
     <div style="display:flex;gap:6px">
       <input id="lookup" placeholder="ISBN(978...)または題名">
@@ -113,13 +166,15 @@ label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
       <div>
         <div class="cover" id="coverPrev">表紙なし</div>
         <input type="file" id="coverFile" accept="image/*" hidden>
-        <button type="button" id="coverBtn" style="margin-top:6px;font-size:11px;padding:2px 6px">画像を選ぶ</button>
+        <button type="button" id="coverBtn" class="small" style="margin-top:6px">画像を選ぶ</button>
       </div>
       <div style="flex:1">
         <label>題名 *</label><input id="title" required>
-        <label>題名のよみ(50音順用・ひらがな)</label><input id="titleYomi" placeholder="例:ぼっちゃん">
         <label>作者</label><input id="author">
-        <label>作者のよみ(50音順用・ひらがな)</label><input id="authorYomi" placeholder="例:なつめそうせき">
+        <details id="yomiBox"><summary>50音順用のよみ(ひらがな)</summary>
+          <label style="margin-top:0">題名のよみ</label><input id="titleYomi" placeholder="例:ぼっちゃん">
+          <label>作者のよみ</label><input id="authorYomi" placeholder="例:なつめそうせき">
+        </details>
         <label>イラストレーター(小説など)</label><input id="illustrator">
       </div>
     </div>
@@ -159,7 +214,7 @@ const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(books)); 
 const saveCfg = () => { try { localStorage.setItem(CFGKEY, JSON.stringify(cfg)); } catch(e) {} };
 const live = () => books.filter(b => !b.deleted);
 const coverSrc = b => b.cover || b.thumb || "";
-let editingId = null, rating = 0, curThumb = "", pendingFull = "";
+let editingId = null, viewId = null, rating = 0, curThumb = "", pendingFull = "";
 
 /* ---------- 50音順ヘルパー ---------- */
 const toHira = s => (s || "").replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
@@ -221,17 +276,37 @@ function render() {
     </div>`; }).join("") : '<div class="empty" style="grid-column:1/-1">本がありません。「＋ 追加」から登録しましょう。</div>';
 }
 ["q","fGenre","fStatus","sort"].forEach(id => $(id).addEventListener("input", render));
-$("list").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openDlg(c.dataset.id); });
+$("list").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openView(c.dataset.id); });
 
 /* ---------- 星 ---------- */
 function drawStars() {
   $("stars").innerHTML = [1,2,3,4,5].map(n => `<span data-n="${n}" class="${n <= rating ? "on" : ""}">★</span>`).join("") +
-    ` <button type="button" id="clrStar" style="font-size:11px;padding:1px 6px">クリア</button>`;
+    ` <button type="button" id="clrStar" class="small">クリア</button>`;
 }
 $("stars").addEventListener("click", e => {
   if (e.target.dataset.n) { rating = +e.target.dataset.n; drawStars(); }
   if (e.target.id === "clrStar") { rating = 0; drawStars(); }
 });
+
+/* ---------- 詳細(読む画面) ---------- */
+function openView(id) {
+  const b = books.find(x => x.id === id); if (!b) return;
+  viewId = id;
+  const src = coverSrc(b), r = b.rating || 0;
+  $("vCover").style.backgroundImage = src ? `url('${src}')` : "";
+  $("vCover").textContent = src ? "" : "表紙なし";
+  $("vTitle").textContent = b.title || "";
+  $("vAuthor").textContent = (b.author || "") + (b.illustrator ? " / 絵: " + b.illustrator : "");
+  $("vStars").textContent = "★".repeat(r) + "☆".repeat(5 - r);
+  $("vTags").innerHTML = (b.genre ? `<span class="tag">${esc(b.genre)}</span>` : "") + `<span class="tag">${esc(b.status)}</span>`;
+  $("vDates").textContent = `購入: ${b.purchase || "不明"} ／ 読了: ${b.status === "読了" ? (b.read || "不明") : "-"}`;
+  $("vNote").textContent = b.note || "(まだありません)";
+  $("vSyn").textContent = b.synopsis || "(なし)";
+  $("viewDlg").showModal(); $("viewDlg").scrollTop = 0;
+}
+$("vClose").onclick = () => $("viewDlg").close();
+$("vEdit").onclick = () => { $("viewDlg").close(); openDlg(viewId); };
+["viewDlg", "setDlg"].forEach(id => $(id).addEventListener("click", e => { if (e.target.id === id) $(id).close(); }));
 
 /* ---------- 編集ダイアログ ---------- */
 const F = ["title","titleYomi","author","authorYomi","illustrator","genre","isbn","cover","purchase","read","status","synopsis","note"];
@@ -247,6 +322,7 @@ function openDlg(id) {
   curThumb = b.thumb || ""; pendingFull = b.pendingFull || "";
   rating = b.rating || 0; drawStars(); setCoverPrev();
   $("lookup").value = ""; $("results").innerHTML = "";
+  $("yomiBox").open = !(b.titleYomi && b.authorYomi);
   $("delBtn").style.display = id ? "" : "none";
   $("dlg").showModal();
 }
