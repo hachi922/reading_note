@@ -37,7 +37,16 @@ button.icon{padding:0;width:44px;font-size:20px;border-color:var(--line);color:v
 button.small{min-height:36px;font-size:13px;padding:4px 10px}
 #cloud{font-size:12px;color:var(--sub);cursor:pointer;border:1px solid var(--line);border-radius:16px;padding:6px 10px;background:#fff}
 main{max-width:960px;margin:0 auto;padding:12px max(16px,env(safe-area-inset-right)) calc(110px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left))}
-.filters{display:grid;grid-template-columns:1fr 1fr 1.25fr;gap:8px;margin-bottom:12px}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+@media(min-width:641px){.filters{grid-template-columns:repeat(4,1fr)}}
+.btag{display:inline-block;font-size:12px;background:#f3e7d8;color:var(--accent);border-radius:11px;padding:1px 8px;margin:3px 4px 0 0;cursor:pointer}
+.tagbox{display:flex;flex-wrap:wrap;align-items:center;gap:6px;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:#fff;min-height:44px}
+.tagbox input{border:none;min-height:30px;padding:2px;flex:1;min-width:130px;width:auto;border-radius:0}
+.tagbox input:focus{outline:none}
+.chip{display:inline-flex;align-items:center;gap:2px;background:#f3e7d8;color:var(--accent);border-radius:15px;padding:3px 4px 3px 11px;font-size:14px}
+.chip button{border:none;min-height:0;padding:0 7px;background:none;font-size:18px;line-height:1;color:var(--accent)}
+.sugg{margin-top:6px}
+.sugg .btag{background:#fff;border:1px dashed var(--accent);font-size:13px;padding:3px 10px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr));gap:10px}
 .card{min-width:0;display:flex;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;cursor:pointer}
 .card:active{background:#fdf8f2}
@@ -98,6 +107,7 @@ h4{margin:18px 0 6px;font-size:13px;color:var(--accent)}
 <main>
   <div class="filters">
     <select id="fGenre"><option value="">全ジャンル</option></select>
+    <select id="fTag"><option value="">全タグ</option></select>
     <select id="fStatus"><option value="">全状態</option><option>未読</option><option>読書中</option><option>読了</option></select>
     <select id="sort">
       <option value="created">登録順</option>
@@ -183,6 +193,9 @@ h4{margin:18px 0 6px;font-size:13px;color:var(--accent)}
       <div><label>ジャンル(手入力)</label><input id="genre" list="genres"><datalist id="genres"></datalist></div>
       <div><label>ISBN</label><input id="isbn"></div>
     </div>
+    <label>タグ(細かい分類。Enterか「,」で追加)</label>
+    <div class="tagbox"><span id="tagChips"></span><input id="tagInput" placeholder="例:ミステリ、泣ける、再読したい" enterkeyhint="done"></div>
+    <div id="tagSuggest" class="sugg"></div>
     <div class="row">
       <div><label>購入日(不明なら空欄)</label><input type="date" id="purchase"></div>
       <div><label>読了日(不明なら空欄)</label><input type="date" id="read"></div>
@@ -214,7 +227,7 @@ const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(books)); 
 const saveCfg = () => { try { localStorage.setItem(CFGKEY, JSON.stringify(cfg)); } catch(e) {} };
 const live = () => books.filter(b => !b.deleted);
 const coverSrc = b => b.cover || b.thumb || "";
-let editingId = null, viewId = null, rating = 0, curThumb = "", pendingFull = "";
+let curTags = [], editingId = null, viewId = null, rating = 0, curThumb = "", pendingFull = "";
 
 /* ---------- 50音順ヘルパー ---------- */
 const toHira = s => (s || "").replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
@@ -241,10 +254,18 @@ function render() {
   $("fGenre").value = genres.includes(cur) ? cur : "";
   $("genres").innerHTML = genres.map(g => `<option value="${esc(g)}">`).join("");
 
+  const tagCount = {};
+  all.forEach(b => (b.tags || []).forEach(t => tagCount[t] = (tagCount[t] || 0) + 1));
+  const tagNames = Object.keys(tagCount).sort((a, b) => a.localeCompare(b, "ja"));
+  const curTag = $("fTag").value;
+  $("fTag").innerHTML = '<option value="">全タグ</option>' + tagNames.map(t => `<option value="${esc(t)}">#${esc(t)} (${tagCount[t]})</option>`).join("");
+  $("fTag").value = tagNames.includes(curTag) ? curTag : "";
+
   const q = $("q").value.trim().toLowerCase();
   let list = all.filter(b =>
-    (!q || [b.title, b.author, b.illustrator, b.note, b.synopsis].join(" ").toLowerCase().includes(q)) &&
+    (!q || [b.title, b.author, b.illustrator, b.note, b.synopsis, (b.tags || []).join(" ")].join(" ").toLowerCase().includes(q)) &&
     (!$("fGenre").value || b.genre === $("fGenre").value) &&
+    (!$("fTag").value || (b.tags || []).includes($("fTag").value)) &&
     (!$("fStatus").value || b.status === $("fStatus").value));
   const s = $("sort").value;
   list.sort((a, b) =>
@@ -271,12 +292,19 @@ function render() {
         <div class="s">${esc(b.author)}${b.illustrator ? " / 絵: " + esc(b.illustrator) : ""}</div>
         <div class="stars">${"★".repeat(b.rating || 0)}${"☆".repeat(5 - (b.rating || 0))}</div>
         <div>${b.genre ? `<span class="tag">${esc(b.genre)}</span>` : ""}<span class="tag">${esc(b.status)}</span></div>
+        ${(b.tags || []).length ? `<div>${tagHtml(b.tags)}</div>` : ""}
         <div class="s">購入: ${b.purchase || "不明"} ／ 読了: ${b.status === "読了" ? (b.read || "不明") : "-"}</div>
       </div>
     </div>`; }).join("") : '<div class="empty" style="grid-column:1/-1">本がありません。「＋ 追加」から登録しましょう。</div>';
 }
-["q","fGenre","fStatus","sort"].forEach(id => $(id).addEventListener("input", render));
-$("list").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openView(c.dataset.id); });
+["q","fGenre","fTag","fStatus","sort"].forEach(id => $(id).addEventListener("input", render));
+const tagHtml = tags => (tags || []).map(t => `<span class="btag" data-tag="${esc(t)}">#${esc(t)}</span>`).join("");
+function filterByTag(t) { $("fTag").value = t; render(); window.scrollTo({ top: 0, behavior: "smooth" }); }
+$("list").addEventListener("click", e => {
+  const t = e.target.closest(".btag");
+  if (t) { filterByTag(t.dataset.tag); return; }
+  const c = e.target.closest(".card"); if (c) openView(c.dataset.id);
+});
 
 /* ---------- 星 ---------- */
 function drawStars() {
@@ -298,13 +326,14 @@ function openView(id) {
   $("vTitle").textContent = b.title || "";
   $("vAuthor").textContent = (b.author || "") + (b.illustrator ? " / 絵: " + b.illustrator : "");
   $("vStars").textContent = "★".repeat(r) + "☆".repeat(5 - r);
-  $("vTags").innerHTML = (b.genre ? `<span class="tag">${esc(b.genre)}</span>` : "") + `<span class="tag">${esc(b.status)}</span>`;
+  $("vTags").innerHTML = (b.genre ? `<span class="tag">${esc(b.genre)}</span>` : "") + `<span class="tag">${esc(b.status)}</span>` + tagHtml(b.tags);
   $("vDates").textContent = `購入: ${b.purchase || "不明"} ／ 読了: ${b.status === "読了" ? (b.read || "不明") : "-"}`;
   $("vNote").textContent = b.note || "(まだありません)";
   $("vSyn").textContent = b.synopsis || "(なし)";
   $("viewDlg").showModal(); $("viewDlg").scrollTop = 0;
 }
 $("vClose").onclick = () => $("viewDlg").close();
+$("vTags").addEventListener("click", e => { const t = e.target.closest(".btag"); if (t) { $("viewDlg").close(); filterByTag(t.dataset.tag); } });
 $("vEdit").onclick = () => { $("viewDlg").close(); openDlg(viewId); };
 ["viewDlg", "setDlg"].forEach(id => $(id).addEventListener("click", e => { if (e.target.id === id) $(id).close(); }));
 
@@ -315,12 +344,38 @@ function setCoverPrev() {
   $("coverPrev").style.backgroundImage = u ? `url('${u}')` : "";
   $("coverPrev").textContent = u ? "" : "表紙なし";
 }
+/* ---------- タグ入力 ---------- */
+function drawTags() {
+  $("tagChips").innerHTML = curTags.map((t, i) => `<span class="chip">#${esc(t)}<button type="button" data-i="${i}" aria-label="削除">×</button></span>`).join("");
+  const freq = {};
+  live().forEach(b => (b.tags || []).forEach(t => freq[t] = (freq[t] || 0) + 1));
+  const sugg = Object.keys(freq).filter(t => !curTags.includes(t)).sort((a, b) => freq[b] - freq[a]).slice(0, 14);
+  $("tagSuggest").innerHTML = sugg.length ? '<span class="hint">よく使うタグ: </span>' + sugg.map(t => `<span class="btag" data-tag="${esc(t)}">+ ${esc(t)}</span>`).join("") : "";
+}
+function addTags(raw) {
+  String(raw).split(/[,、，]/).forEach(p => {
+    const t = p.trim().replace(/^[#＃]+/, "").slice(0, 24);
+    if (t && !curTags.includes(t)) curTags.push(t);
+  });
+  drawTags();
+}
+function commitTagInput() { const v = $("tagInput").value; if (v.trim()) addTags(v); $("tagInput").value = ""; }
+$("tagInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") { e.preventDefault(); commitTagInput(); }
+  else if (e.key === "Backspace" && !$("tagInput").value && curTags.length) { curTags.pop(); drawTags(); }
+});
+$("tagInput").addEventListener("input", e => { if (/[,、，]$/.test($("tagInput").value)) commitTagInput(); });
+$("tagInput").addEventListener("blur", commitTagInput);
+$("tagChips").addEventListener("click", e => { const b = e.target.closest("button"); if (b) { curTags.splice(+b.dataset.i, 1); drawTags(); } });
+$("tagSuggest").addEventListener("click", e => { const t = e.target.closest(".btag"); if (t) addTags(t.dataset.tag); });
+
 function openDlg(id) {
   editingId = id || null;
   const b = id ? books.find(x => x.id === id) : { status: "読了" };
   F.forEach(k => $(k).value = b[k] || (k === "status" ? "読了" : ""));
   curThumb = b.thumb || ""; pendingFull = b.pendingFull || "";
   rating = b.rating || 0; drawStars(); setCoverPrev();
+  curTags = [...(b.tags || [])]; $("tagInput").value = ""; drawTags();
   $("lookup").value = ""; $("results").innerHTML = "";
   $("yomiBox").open = !(b.titleYomi && b.authorYomi);
   $("delBtn").style.display = id ? "" : "none";
@@ -331,7 +386,8 @@ $("cancelBtn").onclick = () => $("dlg").close();
 $("cover").addEventListener("input", () => { if ($("cover").value) { curThumb = ""; pendingFull = ""; } setCoverPrev(); });
 $("form").addEventListener("submit", e => {
   e.preventDefault();
-  const data = {}; F.forEach(k => data[k] = $(k).value.trim()); data.rating = rating;
+  commitTagInput();
+  const data = {}; F.forEach(k => data[k] = $(k).value.trim()); data.rating = rating; data.tags = [...curTags];
   if (data.cover) { data.thumb = ""; data.pendingFull = ""; } else { data.thumb = curThumb; data.pendingFull = pendingFull; }
   const now = Date.now();
   if (editingId) {
