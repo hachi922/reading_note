@@ -146,6 +146,9 @@ h4{margin:18px 0 6px;font-size:13px;color:var(--accent)}
   <h3 style="margin-top:0">設定</h3>
   <label>Google Client ID(READMEの手順で取得)</label>
   <input id="clientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+  <label>Googleアカウントのメール(任意)</label>
+  <input id="hintEmail" type="email" placeholder="example@gmail.com" autocapitalize="off">
+  <p class="hint" style="margin:4px 0 0">入れておくと、アカウントを選ぶ画面が省けます。</p>
   <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
     <button id="connBtn" class="primary">Googleドライブに接続</button>
     <button id="syncBtn">今すぐ同期</button>
@@ -515,14 +518,19 @@ $("importFile").onchange = async e => {
    ===================================================== */
 const SCOPE = "https://www.googleapis.com/auth/drive.file";
 const DRIVE = "https://www.googleapis.com/drive/v3", UP = "https://www.googleapis.com/upload/drive/v3";
-let token = null, tokenExp = 0, tc = null, tokenPromise = null, folderId = null, syncing = false, again = false, timer = null;
+const TOKKEY = "reading-notes-tok";
+let token = null, tokenExp = 0;
+try { const s = JSON.parse(localStorage.getItem(TOKKEY) || "null"); if (s && s.exp > Date.now() + 60000) { token = s.t; tokenExp = s.exp; } } catch (e) {}
+const hasToken = () => !!token && Date.now() < tokenExp - 60000;
+const clearToken = () => { token = null; tokenExp = 0; try { localStorage.removeItem(TOKKEY); } catch (e) {} };
+let tc = null, tokenPromise = null, folderId = null, syncing = false, again = false, timer = null;
 
 function setStatus(msg, short) {
   $("syncStatus").textContent = msg;
   $("cloud").textContent = short || (cfg.connected ? "☁ 接続中" : "☁ 未接続");
 }
 function ensureToken(interactive) {
-  if (token && Date.now() < tokenExp - 60000) return Promise.resolve();
+  if (hasToken()) return Promise.resolve();
   if (tokenPromise) return tokenPromise;
   tokenPromise = new Promise((res, rej) => {
     if (!cfg.clientId) return rej(new Error("Client IDが未設定です"));
@@ -533,17 +541,19 @@ function ensureToken(interactive) {
     }
     tc.callback = r => {
       if (r.error) return rej(new Error(r.error));
-      token = r.access_token; tokenExp = Date.now() + (r.expires_in || 3600) * 1000; res();
+      token = r.access_token; tokenExp = Date.now() + (r.expires_in || 3600) * 1000;
+      try { localStorage.setItem(TOKKEY, JSON.stringify({ t: token, exp: tokenExp })); } catch (e) {}
+      res();
     };
     tc.error_callback = e => rej(new Error("サインインがキャンセル/ブロックされました(" + (e.type || "") + ")"));
-    tc.requestAccessToken({ prompt: interactive ? "select_account" : "" });
+    tc.requestAccessToken({ prompt: (interactive && !cfg.hint) ? "select_account" : "", hint: cfg.hint || undefined });
   }).finally(() => { tokenPromise = null; });
   return tokenPromise;
 }
 async function api(url, opts = {}) {
   await ensureToken();
   const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + token } });
-  if (r.status === 401) { token = null; throw new Error("認証の期限切れ。再接続してください"); }
+  if (r.status === 401) { clearToken(); throw new Error("認証の期限切れ。再接続してください"); }
   if (!r.ok) throw new Error("Drive " + r.status + ": " + (await r.text()).slice(0, 120));
   return r;
 }
@@ -622,34 +632,44 @@ async function sync(interactive) {
     setStatus("同期できません: " + e.message + "(⚙から「今すぐ同期」を押してください)", "☁ 要再接続");
   } finally { syncing = false; if (again) { again = false; sync(); } }
 }
-function schedulePush() { if (!cfg.connected) return; clearTimeout(timer); timer = setTimeout(() => sync(), 1500); }
+function schedulePush() { if (!cfg.connected) return; clearTimeout(timer); if (!hasToken()) { sync(); return; } timer = setTimeout(() => sync(), 1500); }
 
 /* 設定画面 */
-$("setBtn").onclick = $("cloud").onclick = () => { $("clientId").value = cfg.clientId; $("setDlg").showModal(); };
+$("setBtn").onclick = $("cloud").onclick = () => { $("clientId").value = cfg.clientId; $("hintEmail").value = cfg.hint || ""; $("setDlg").showModal(); };
 $("setClose").onclick = () => $("setDlg").close();
 $("connBtn").onclick = async () => {
-  cfg.clientId = $("clientId").value.trim(); saveCfg();
+  cfg.clientId = $("clientId").value.trim(); cfg.hint = $("hintEmail").value.trim(); saveCfg();
   if (!cfg.clientId) return setStatus("Client IDを入力してください");
-  cfg.connected = true; saveCfg(); token = null; folderId = null;
+  cfg.connected = true; saveCfg(); clearToken(); folderId = null;
   await sync(true);
   if ($("cloud").textContent.includes("要再接続")) { cfg.connected = false; saveCfg(); }
 };
-$("syncBtn").onclick = async () => { cfg.clientId = $("clientId").value.trim() || cfg.clientId; saveCfg(); if (!cfg.connected) cfg.connected = true; saveCfg(); await sync(true); };
+$("syncBtn").onclick = async () => { cfg.clientId = $("clientId").value.trim() || cfg.clientId; cfg.hint = $("hintEmail").value.trim(); saveCfg(); if (!cfg.connected) cfg.connected = true; saveCfg(); await sync(true); };
 $("discBtn").onclick = () => {
   if (token && window.google) try { google.accounts.oauth2.revoke(token); } catch (e) {}
-  token = null; folderId = null; cfg.connected = false; saveCfg(); setStatus("接続を解除しました(端末内のデータは残っています)");
+  clearToken(); folderId = null; cfg.connected = false; saveCfg(); setStatus("接続を解除しました(端末内のデータは残っています)");
 };
 
 /* 起動時 */
 render(); setStatus(cfg.connected ? "接続設定あり" : "未接続");
-let gsiTries = 0;
+let armed = false;
+// ポップアップは画面タップの直後でないとブロックされるため、トークンが無いときは最初のタップを待って同期する
+function armGesture() {
+  if (armed || !cfg.connected) return;
+  armed = true;
+  setStatus("画面を1回タップすると同期します", "☁ タップで同期");
+  document.addEventListener("click", e => {
+    armed = false;
+    if (e.target.closest && e.target.closest("#setDlg")) return;
+    if (cfg.connected && !hasToken()) sync();
+  }, { once: true, capture: true });
+}
 function startSync() {
   if (!cfg.connected) return;
-  if (!(window.google && google.accounts) && gsiTries++ < 20) return setTimeout(startSync, 500);
-  sync();
+  if (hasToken()) sync(); else armGesture();
 }
 window.addEventListener("load", startSync);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && cfg.connected && !syncing) sync(); });
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && cfg.connected && !syncing) { if (hasToken()) sync(); else armGesture(); } });
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
 </script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
