@@ -1,4 +1,4 @@
-# 読書ノート
+# Librino(読書ノート)
 
 ISBNから本の情報を自動入力できる読書記録アプリです。GitHub Pagesで公開し、スマホのホーム画面に追加して使えます。
 データと表紙画像は、自分のGoogleドライブ(「読書ノート」フォルダ)に保存されます。
@@ -18,7 +18,7 @@ ISBNから本の情報を自動入力できる読書記録アプリです。GitH
 1. GitHubで新しいリポジトリを作る(例: `reading-notes`)。**Public**にします(無料プランのPagesは公開リポジトリが前提です)。
 2. 5ファイルをアップロードして Commit する。
 3. リポジトリの **Settings → Pages** で、Source を「Deploy from a branch」、Branch を `main` / `(root)` にして Save。
-4. 数分後、`https://<GitHubユーザー名>.github.io/reading-notes/` で開けます。
+4. 数分後、`https://<GitHubユーザー名>.github.io/<リポジトリ名>/` で開けます。
 
 公開されるのはアプリの画面だけです。本のデータはGoogleドライブに入るので、他の人には見えません。
 
@@ -30,7 +30,7 @@ ISBNから本の情報を自動入力できる読書記録アプリです。GitH
 2. **APIとサービス → ライブラリ** で「Google Drive API」を検索して **有効にする**。
 3. **Google Auth Platform(OAuth同意画面)** を設定する。
    - ユーザーの種類: **外部**
-   - アプリ名: 読書ノート / サポートメール: 自分のGmail
+   - アプリ名: Librino / サポートメール: 自分のGmail
    - **テストユーザー**に、自分のGmailアドレスを追加する。
 4. **クライアント → クライアントを作成** を選び、種類は **ウェブアプリケーション**。
    - **承認済みのJavaScript生成元**に `https://<GitHubユーザー名>.github.io` を追加する(`/reading-notes` などのパスは付けません)。
