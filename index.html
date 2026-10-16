@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#b5651d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>読書ノート</title>
+<style>
+:root{--bg:#faf6f1;--card:#fff;--ink:#3a3128;--sub:#8a7b6c;--accent:#b5651d;--line:#e6dccf}
+*{box-sizing:border-box}
+body{margin:0;font-family:"Hiragino Sans","Yu Gothic",sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:12px 16px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0 8px 0 0}
+input,select,textarea,button{font:inherit;color:inherit}
+input,select,textarea{border:1px solid var(--line);border-radius:6px;padding:6px 8px;background:#fff;width:100%}
+textarea{resize:vertical}
+button{border:1px solid var(--accent);background:#fff;color:var(--accent);border-radius:6px;padding:6px 12px;cursor:pointer}
+button.primary{background:var(--accent);color:#fff}
+button.danger{border-color:#b33;color:#b33}
+header input,header select{width:auto}
+main{max-width:960px;margin:0 auto;padding:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.card{display:flex;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;cursor:pointer}
+.card:hover{border-color:var(--accent)}
+.cover{width:70px;height:100px;flex:none;border-radius:4px;background:#eee center/cover no-repeat;border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--sub)}
+.meta{min-width:0;font-size:13px}
+.meta .t{font-weight:bold;font-size:14px}
+.meta .s{color:var(--sub)}
+.stars{color:#e0a100;letter-spacing:1px}
+.tag{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:10px;padding:0 6px;margin-right:4px;color:var(--sub)}
+dialog{border:none;border-radius:12px;max-width:640px;width:calc(100% - 24px);padding:16px;max-height:92vh}
+dialog::backdrop{background:#0005}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{display:block;font-size:12px;color:var(--sub);margin:8px 0 2px}
+.top{display:flex;gap:12px}
+.top .cover{width:90px;height:128px}
+.star-input span{font-size:28px;cursor:pointer;color:#ccc}
+.star-input span.on{color:#e0a100}
+.actions{display:flex;gap:8px;justify-content:space-between;margin-top:14px}
+.hint{font-size:12px;color:var(--sub)}
+.empty{text-align:center;color:var(--sub);padding:40px 0}
+.ghead{grid-column:1/-1;font-weight:bold;color:var(--accent);border-bottom:2px solid var(--line);padding:4px 2px;margin-top:6px}
+#cloud{font-size:12px;color:var(--sub);cursor:pointer;border:1px solid var(--line);border-radius:12px;padding:2px 8px;background:#fff}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>📚 読書ノート</h1>
+  <button class="primary" id="addBtn">＋ 追加</button>
+  <input id="q" placeholder="検索(題名・著者・感想)" style="flex:1;min-width:140px">
+  <select id="fGenre"><option value="">全ジャンル</option></select>
+  <select id="fStatus"><option value="">全状態</option><option>未読</option><option>読書中</option><option>読了</option></select>
+  <select id="sort">
+    <option value="created">登録順</option>
+    <option value="read">読了日順</option>
+    <option value="rating">評価順</option>
+    <option value="title">題名順(50音)</option>
+    <option value="author">著者順(50音)</option>
+  </select>
+  <span id="cloud" title="設定を開く">☁ 未接続</span>
+  <button id="setBtn">⚙</button>
+</header>
+<main>
+  <div id="yomiWarn" class="hint" style="margin-bottom:8px"></div>
+  <div id="list" class="grid"></div>
+</main>
+
+<!-- 設定 -->
+<dialog id="setDlg">
+  <h3 style="margin-top:0">設定</h3>
+  <label>Google Client ID(READMEの手順で取得)</label>
+  <input id="clientId" placeholder="xxxxxxxx.apps.googleusercontent.com">
+  <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+    <button id="connBtn" class="primary">Googleドライブに接続</button>
+    <button id="syncBtn">今すぐ同期</button>
+    <button id="discBtn" class="danger">接続を解除</button>
+  </div>
+  <p class="hint" id="syncStatus">未接続</p>
+  <p class="hint">接続すると、Googleドライブの「読書ノート」フォルダに データ(books.json)と表紙画像が保存され、スマホとPCで同期されます。このアプリが作ったファイルしか触りません。</p>
+  <hr style="border:none;border-top:1px solid var(--line)">
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+    <button id="exportBtn">バックアップを書き出し</button>
+    <button id="importBtn">読み込み</button>
+    <input type="file" id="importFile" accept=".json" hidden>
+  </div>
+  <div class="actions"><span></span><button id="setClose">閉じる</button></div>
+</dialog>
+
+<!-- 本の編集 -->
+<dialog id="dlg">
+  <form id="form" method="dialog">
+    <label>ISBN または 題名で検索して自動入力</label>
+    <div style="display:flex;gap:6px">
+      <input id="lookup" placeholder="ISBN(978...)または題名">
+      <button type="button" id="lookupBtn">検索</button>
+    </div>
+    <div id="results" class="hint"></div>
+
+    <div class="top" style="margin-top:10px">
+      <div>
+        <div class="cover" id="coverPrev">表紙なし</div>
+        <input type="file" id="coverFile" accept="image/*" hidden>
+        <button type="button" id="coverBtn" style="margin-top:6px;font-size:11px;padding:2px 6px">画像を選ぶ</button>
+      </div>
+      <div style="flex:1">
+        <label>題名 *</label><input id="title" required>
+        <label>題名のよみ(50音順用・ひらがな)</label><input id="titleYomi" placeholder="例:ぼっちゃん">
+        <label>作者</label><input id="author">
+        <label>作者のよみ(50音順用・ひらがな)</label><input id="authorYomi" placeholder="例:なつめそうせき">
+        <label>イラストレーター(小説など)</label><input id="illustrator">
+      </div>
+    </div>
+    <label>表紙画像URL(画像を選んだ場合は空欄)</label><input id="cover" placeholder="自動取得されます">
+    <div class="row">
+      <div><label>ジャンル(手入力)</label><input id="genre" list="genres"><datalist id="genres"></datalist></div>
+      <div><label>ISBN</label><input id="isbn"></div>
+    </div>
+    <div class="row">
+      <div><label>購入日(不明なら空欄)</label><input type="date" id="purchase"></div>
+      <div><label>読了日(不明なら空欄)</label><input type="date" id="read"></div>
+    </div>
+    <label>状態</label>
+    <select id="status"><option>未読</option><option>読書中</option><option selected>読了</option></select>
+    <label>評価</label>
+    <div class="star-input" id="stars"></div>
+    <label>あらすじ</label><textarea id="synopsis" rows="4"></textarea>
+    <label>感想</label><textarea id="note" rows="6"></textarea>
+    <div class="actions">
+      <button type="button" class="danger" id="delBtn">削除</button>
+      <span>
+        <button type="button" id="cancelBtn">キャンセル</button>
+        <button type="submit" class="primary">保存</button>
+      </span>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const KEY = "reading-notes-v1", CFGKEY = "reading-notes-cfg";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let books = [], cfg = { clientId: "", connected: false };
+try { books = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch(e) {}
+try { cfg = { ...cfg, ...JSON.parse(localStorage.getItem(CFGKEY) || "{}") }; } catch(e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(books)); } catch(e) { alert("端末への保存に失敗しました(容量不足の可能性)。バックアップを書き出してください。"); } };
+const saveCfg = () => { try { localStorage.setItem(CFGKEY, JSON.stringify(cfg)); } catch(e) {} };
+const live = () => books.filter(b => !b.deleted);
+const coverSrc = b => b.cover || b.thumb || "";
+let editingId = null, rating = 0, curThumb = "", pendingFull = "";
+
+/* ---------- 50音順ヘルパー ---------- */
+const toHira = s => (s || "").replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+function sortKey(b, f) {
+  let k = toHira((b[f + "Yomi"] || b[f] || "")).normalize("NFKC").replace(/^[\s「『(（【\[\-ー・]+/, "").toLowerCase();
+  if (/^[一-龥]/.test(k)) k = "\uffff" + k;
+  return k;
+}
+const ROWS = [["あ行","ぁあぃいぅうぇえぉおゔ"],["か行","かきくけこ"],["さ行","さしすせそ"],["た行","たちつってとっ"],["な行","なにぬねの"],["は行","はひふへほ"],["ま行","まみむめも"],["や行","ゃやゅゆょよ"],["ら行","らりるれろ"],["わ行","ゎわゐゑをん"]];
+function groupOf(k) {
+  const c = (k[0] || "").normalize("NFD")[0] || "";
+  for (const [n, chars] of ROWS) if (chars.includes(c)) return n;
+  if (/[a-z]/.test(c)) return "A-Z";
+  if (/[0-9]/.test(c)) return "数字";
+  return "その他";
+}
+
+/* ---------- 一覧 ---------- */
+function render() {
+  const all = live();
+  const genres = [...new Set(all.map(b => b.genre).filter(Boolean))].sort();
+  const cur = $("fGenre").value;
+  $("fGenre").innerHTML = '<option value="">全ジャンル</option>' + genres.map(g => `<option>${esc(g)}</option>`).join("");
+  $("fGenre").value = genres.includes(cur) ? cur : "";
+  $("genres").innerHTML = genres.map(g => `<option value="${esc(g)}">`).join("");
+
+  const q = $("q").value.trim().toLowerCase();
+  let list = all.filter(b =>
+    (!q || [b.title, b.author, b.illustrator, b.note, b.synopsis].join(" ").toLowerCase().includes(q)) &&
+    (!$("fGenre").value || b.genre === $("fGenre").value) &&
+    (!$("fStatus").value || b.status === $("fStatus").value));
+  const s = $("sort").value;
+  list.sort((a, b) =>
+    s === "read" ? (b.read || "").localeCompare(a.read || "") :
+    s === "rating" ? (b.rating || 0) - (a.rating || 0) :
+    s === "title" ? sortKey(a, "title").localeCompare(sortKey(b, "title"), "ja") :
+    s === "author" ? sortKey(a, "author").localeCompare(sortKey(b, "author"), "ja") :
+    (b.created || 0) - (a.created || 0));
+
+  const grouped = s === "title" || s === "author";
+  let lastGroup = null;
+  const missing = grouped ? list.filter(b => !b[s + "Yomi"] && /[一-龥]/.test(b[s] || "")).length : 0;
+  $("yomiWarn").textContent = missing ? `※ よみが未入力の漢字の${s === "title" ? "題名" : "著者"}が${missing}件あります(「その他」にまとまります)。編集画面でよみを入力すると50音順に並びます。` : "";
+
+  $("list").innerHTML = list.length ? list.map(b => {
+    let head = "";
+    if (grouped) { const g = groupOf(sortKey(b, s)); if (g !== lastGroup) { head = `<div class="ghead">${g}</div>`; lastGroup = g; } }
+    const src = coverSrc(b);
+    return head + `
+    <div class="card" data-id="${b.id}">
+      <div class="cover" style="${src ? `background-image:url('${esc(src)}')` : ""}">${src ? "" : "表紙なし"}</div>
+      <div class="meta">
+        <div class="t">${esc(b.title)}</div>
+        <div class="s">${esc(b.author)}${b.illustrator ? " / 絵: " + esc(b.illustrator) : ""}</div>
+        <div class="stars">${"★".repeat(b.rating || 0)}${"☆".repeat(5 - (b.rating || 0))}</div>
+        <div>${b.genre ? `<span class="tag">${esc(b.genre)}</span>` : ""}<span class="tag">${esc(b.status)}</span></div>
+        <div class="s">購入: ${b.purchase || "不明"} ／ 読了: ${b.status === "読了" ? (b.read || "不明") : "-"}</div>
+      </div>
+    </div>`; }).join("") : '<div class="empty" style="grid-column:1/-1">本がありません。「＋ 追加」から登録しましょう。</div>';
+}
+["q","fGenre","fStatus","sort"].forEach(id => $(id).addEventListener("input", render));
+$("list").addEventListener("click", e => { const c = e.target.closest(".card"); if (c) openDlg(c.dataset.id); });
+
+/* ---------- 星 ---------- */
+function drawStars() {
+  $("stars").innerHTML = [1,2,3,4,5].map(n => `<span data-n="${n}" class="${n <= rating ? "on" : ""}">★</span>`).join("") +
+    ` <button type="button" id="clrStar" style="font-size:11px;padding:1px 6px">クリア</button>`;
+}
+$("stars").addEventListener("click", e => {
+  if (e.target.dataset.n) { rating = +e.target.dataset.n; drawStars(); }
+  if (e.target.id === "clrStar") { rating = 0; drawStars(); }
+});
+
+/* ---------- 編集ダイアログ ---------- */
+const F = ["title","titleYomi","author","authorYomi","illustrator","genre","isbn","cover","purchase","read","status","synopsis","note"];
+function setCoverPrev() {
+  const u = $("cover").value || curThumb;
+  $("coverPrev").style.backgroundImage = u ? `url('${u}')` : "";
+  $("coverPrev").textContent = u ? "" : "表紙なし";
+}
+function openDlg(id) {
+  editingId = id || null;
+  const b = id ? books.find(x => x.id === id) : { status: "読了" };
+  F.forEach(k => $(k).value = b[k] || (k === "status" ? "読了" : ""));
+  curThumb = b.thumb || ""; pendingFull = b.pendingFull || "";
+  rating = b.rating || 0; drawStars(); setCoverPrev();
+  $("lookup").value = ""; $("results").innerHTML = "";
+  $("delBtn").style.display = id ? "" : "none";
+  $("dlg").showModal();
+}
+$("addBtn").onclick = () => openDlg();
+$("cancelBtn").onclick = () => $("dlg").close();
+$("cover").addEventListener("input", () => { if ($("cover").value) { curThumb = ""; pendingFull = ""; } setCoverPrev(); });
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const data = {}; F.forEach(k => data[k] = $(k).value.trim()); data.rating = rating;
+  if (data.cover) { data.thumb = ""; data.pendingFull = ""; } else { data.thumb = curThumb; data.pendingFull = pendingFull; }
+  const now = Date.now();
+  if (editingId) {
+    const b = books.find(x => x.id === editingId);
+    if (b.coverDriveId && (data.cover !== b.cover || data.pendingFull)) { if (!data.pendingFull) data.coverDriveId = ""; }
+    Object.assign(b, data, { updatedAt: now });
+  } else books.push({ id: String(now), created: now, updatedAt: now, ...data });
+  persist(); render(); $("dlg").close(); schedulePush();
+});
+$("delBtn").onclick = () => {
+  if (!confirm("この本を削除しますか?")) return;
+  const b = books.find(x => x.id === editingId);
+  const id = b.id, created = b.created;
+  books = books.filter(x => x.id !== id);
+  books.push({ id, created, deleted: true, updatedAt: Date.now() });
+  persist(); render(); $("dlg").close(); schedulePush();
+};
+
+/* ---------- 画像選択(Driveに保存する大きい版+一覧用の小さい版) ---------- */
+function resize(img, max, q) {
+  const r = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas");
+  c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", q);
+}
+$("coverBtn").onclick = () => $("coverFile").click();
+$("coverFile").onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = new Image();
+  img.onload = () => {
+    pendingFull = resize(img, 900, .85); curThumb = resize(img, 220, .75);
+    $("cover").value = ""; setCoverPrev(); URL.revokeObjectURL(img.src);
+  };
+  img.src = URL.createObjectURL(f);
+  e.target.value = "";
+};
+
+/* ---------- 書籍情報の検索 ---------- */
+const normIsbn = s => s.replace(/[-\s]/g, "");
+const isIsbn = s => /^(\d{13}|\d{9}[\dXx])$/.test(normIsbn(s));
+async function fromOpenBD(isbn) {
+  const r = await fetch("https://api.openbd.jp/v1/get?isbn=" + isbn);
+  const j = await r.json(); const d = j && j[0]; if (!d) return null;
+  const s = d.summary || {}, o = d.onix || {};
+  const contribs = (o.DescriptiveDetail && o.DescriptiveDetail.Contributor) || [];
+  const byRole = role => contribs.filter(c => (c.ContributorRole || []).includes(role)).map(c => c.PersonName && c.PersonName.content).filter(Boolean).join(", ");
+  const texts = (o.CollateralDetail && o.CollateralDetail.TextContent) || [];
+  const syn = (texts.find(t => t.TextType === "03") || texts.find(t => t.TextType === "02") || texts[0] || {}).Text || "";
+  const tt = (((o.DescriptiveDetail || {}).TitleDetail || {}).TitleElement || {}).TitleText || {};
+  const authorsYomi = contribs.filter(c => (c.ContributorRole || []).includes("A01")).map(c => c.PersonName && c.PersonName.collationkey).filter(Boolean).join("");
+  return {
+    titleYomi: toHira((tt.collationkey || "").replace(/[,\s]/g, "")),
+    authorYomi: toHira(authorsYomi.replace(/[,\s]/g, "")),
+    title: (s.title || "") + (s.volume ? " " + s.volume : ""),
+    author: byRole("A01") || (s.author || "").replace(/\/著$|\/著.*$/, ""),
+    illustrator: byRole("A12"),
+    synopsis: syn, cover: s.cover || "", isbn: s.isbn || isbn
+  };
+}
+async function googleBooks(q) {
+  const r = await fetch("https://www.googleapis.com/books/v1/volumes?maxResults=8&q=" + encodeURIComponent(q));
+  const j = await r.json();
+  return (j.items || []).map(it => {
+    const v = it.volumeInfo || {};
+    const id = (v.industryIdentifiers || []).find(i => i.type === "ISBN_13") || (v.industryIdentifiers || [])[0] || {};
+    return { title: v.title || "", author: (v.authors || []).join(", "), illustrator: "", synopsis: v.description || "",
+      cover: ((v.imageLinks || {}).thumbnail || "").replace("http://", "https://"), isbn: id.identifier || "" };
+  });
+}
+function applyInfo(info) {
+  ["title","titleYomi","author","authorYomi","illustrator","synopsis","cover","isbn"].forEach(k => { if (info[k]) $(k).value = info[k]; });
+  if (info.cover) { curThumb = ""; pendingFull = ""; }
+  setCoverPrev();
+}
+$("lookupBtn").onclick = async () => {
+  const v = $("lookup").value.trim(); if (!v) return;
+  $("results").textContent = "検索中…";
+  try {
+    if (isIsbn(v)) {
+      const isbn = normIsbn(v);
+      let info = await fromOpenBD(isbn);
+      if (!info || !info.title) { info = (await googleBooks("isbn:" + isbn))[0]; }
+      else if (!info.cover || !info.synopsis) {
+        const g = (await googleBooks("isbn:" + isbn))[0];
+        if (g) { info.cover = info.cover || g.cover; info.synopsis = info.synopsis || g.synopsis; }
+      }
+      if (info) { applyInfo(info); $("results").textContent = "入力しました。内容を確認してください(イラストレーターは取れない場合があります)。"; }
+      else $("results").textContent = "見つかりませんでした。手入力してください。";
+    } else {
+      const list = await googleBooks(v);
+      if (!list.length) { $("results").textContent = "見つかりませんでした。"; return; }
+      $("results").innerHTML = list.map((b, i) => `<div><a href="#" data-i="${i}">${esc(b.title)}</a> / ${esc(b.author)}</div>`).join("");
+      $("results").onclick = ev => { const a = ev.target.closest("a"); if (!a) return; ev.preventDefault(); applyInfo(list[a.dataset.i]); $("results").textContent = "入力しました。"; };
+    }
+  } catch (e) { $("results").textContent = "取得に失敗しました(通信エラー)。手入力も可能です。"; }
+};
+$("lookup").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); $("lookupBtn").click(); } });
+
+/* ---------- バックアップ ---------- */
+$("exportBtn").onclick = () => {
+  const out = live().map(({ pendingFull, ...b }) => b);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: "application/json" }));
+  a.download = "reading-notes-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+};
+$("importBtn").onclick = () => $("importFile").click();
+$("importFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data)) throw 0;
+    if (confirm(`${data.length}冊を読み込みます。現在のデータは置き換えられます。よろしいですか?`)) {
+      const now = Date.now();
+      const gone = live().map(b => ({ id: b.id, created: b.created, deleted: true, updatedAt: now }));
+      books = [...gone.filter(g => !data.some(d => d.id === g.id)),
+        ...data.map((b, i) => ({ id: b.id || String(now + i), created: b.created || now, ...b, updatedAt: now }))];
+      persist(); render(); schedulePush();
+    }
+  } catch { alert("読み込めないファイルです。"); }
+  e.target.value = "";
+};
+
+/* =====================================================
+   Googleドライブ同期
+   ===================================================== */
+const SCOPE = "https://www.googleapis.com/auth/drive.file";
+const DRIVE = "https://www.googleapis.com/drive/v3", UP = "https://www.googleapis.com/upload/drive/v3";
+let token = null, tokenExp = 0, tc = null, tokenPromise = null, folderId = null, syncing = false, again = false, timer = null;
+
+function setStatus(msg, short) {
+  $("syncStatus").textContent = msg;
+  $("cloud").textContent = short || (cfg.connected ? "☁ 接続中" : "☁ 未接続");
+}
+function ensureToken(interactive) {
+  if (token && Date.now() < tokenExp - 60000) return Promise.resolve();
+  if (tokenPromise) return tokenPromise;
+  tokenPromise = new Promise((res, rej) => {
+    if (!cfg.clientId) return rej(new Error("Client IDが未設定です"));
+    if (!(window.google && google.accounts && google.accounts.oauth2)) return rej(new Error("Googleのライブラリを読み込めません(オフラインかも)"));
+    if (!tc || tc._cid !== cfg.clientId) {
+      tc = google.accounts.oauth2.initTokenClient({ client_id: cfg.clientId, scope: SCOPE, callback: () => {} });
+      tc._cid = cfg.clientId;
+    }
+    tc.callback = r => {
+      if (r.error) return rej(new Error(r.error));
+      token = r.access_token; tokenExp = Date.now() + (r.expires_in || 3600) * 1000; res();
+    };
+    tc.error_callback = e => rej(new Error("サインインがキャンセル/ブロックされました(" + (e.type || "") + ")"));
+    tc.requestAccessToken({ prompt: interactive ? "select_account" : "" });
+  }).finally(() => { tokenPromise = null; });
+  return tokenPromise;
+}
+async function api(url, opts = {}) {
+  await ensureToken();
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: "Bearer " + token } });
+  if (r.status === 401) { token = null; throw new Error("認証の期限切れ。再接続してください"); }
+  if (!r.ok) throw new Error("Drive " + r.status + ": " + (await r.text()).slice(0, 120));
+  return r;
+}
+async function ensureFolder() {
+  if (folderId) return folderId;
+  const q = encodeURIComponent("name='読書ノート' and mimeType='application/vnd.google-apps.folder' and trashed=false");
+  const j = await (await api(`${DRIVE}/files?q=${q}&fields=files(id)&spaces=drive`)).json();
+  if (j.files && j.files.length) return (folderId = j.files[0].id);
+  const c = await (await api(`${DRIVE}/files?fields=id`, { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: "読書ノート", mimeType: "application/vnd.google-apps.folder" }) })).json();
+  return (folderId = c.id);
+}
+async function findFile(name) {
+  const q = encodeURIComponent(`name='${name}' and '${folderId}' in parents and trashed=false`);
+  const j = await (await api(`${DRIVE}/files?q=${q}&fields=files(id)`)).json();
+  return j.files && j.files[0] ? j.files[0].id : null;
+}
+async function uploadFile(name, mime, data, existingId) {
+  const b = "rn" + Math.random().toString(36).slice(2);
+  const meta = JSON.stringify(existingId ? { name } : { name, parents: [folderId] });
+  const body = new Blob([`--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${meta}\r\n--${b}\r\nContent-Type: ${mime}\r\n\r\n`, data, `\r\n--${b}--`]);
+  const url = existingId ? `${UP}/files/${existingId}?uploadType=multipart&fields=id` : `${UP}/files?uploadType=multipart&fields=id`;
+  return (await (await api(url, { method: existingId ? "PATCH" : "POST", headers: { "Content-Type": "multipart/related; boundary=" + b }, body })).json()).id;
+}
+const dataUrlToBlob = u => { const [h, d] = u.split(","); const bin = atob(d), a = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) a[i] = bin.charCodeAt(i); return new Blob([a], { type: h.match(/:(.*?);/)[1] }); };
+
+async function pullRemote() {
+  const id = await findFile("books.json");
+  if (!id) return null;
+  return await (await api(`${DRIVE}/files/${id}?alt=media`)).json();
+}
+async function pushRemote() {
+  const out = books.map(({ pendingFull, ...b }) => b);
+  const id = await findFile("books.json");
+  await uploadFile("books.json", "application/json", JSON.stringify(out), id);
+}
+function mergeRemote(remote) {
+  const m = new Map(books.map(b => [b.id, b]));
+  for (const r of remote) { const l = m.get(r.id); if (!l || (r.updatedAt || 0) > (l.updatedAt || 0)) m.set(r.id, r); }
+  books = [...m.values()];
+}
+// 表紙画像をDriveに保存(選んだ画像、またはURLの表紙のバックアップ)
+async function processCovers() {
+  for (const b of books) {
+    if (b.deleted) continue;
+    try {
+      if (b.pendingFull) {
+        b.coverDriveId = await uploadFile(`cover-${b.id}.jpg`, "image/jpeg", dataUrlToBlob(b.pendingFull), null);
+        b.pendingFull = ""; b.updatedAt = Date.now(); persist();
+      } else if (!b.coverDriveId && /^https?:/.test(b.cover || "") && !b.archiveFailed) {
+        let blob = null;
+        try { const r = await fetch(b.cover); if (r.ok) blob = await r.blob(); } catch (e) {}
+        if (blob && blob.type.startsWith("image/") && blob.size > 1000) {
+          b.coverDriveId = await uploadFile(`cover-${b.id}.jpg`, blob.type, blob, null);
+        } else b.archiveFailed = true;
+        b.updatedAt = Date.now(); persist();
+      }
+    } catch (e) { /* 次回に再試行 */ }
+  }
+}
+async function sync(interactive) {
+  if (!cfg.connected) return;
+  if (syncing) { again = true; return; }
+  syncing = true; setStatus("同期中…", "☁ 同期中…");
+  try {
+    await ensureToken(interactive);
+    await ensureFolder();
+    const remote = await pullRemote();
+    if (remote) mergeRemote(remote);
+    persist(); render();
+    await processCovers();
+    await pushRemote();
+    const t = new Date().toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
+    setStatus("同期済み(" + t + ")", "☁ 同期済み");
+  } catch (e) {
+    setStatus("同期できません: " + e.message + "(⚙から「今すぐ同期」を押してください)", "☁ 要再接続");
+  } finally { syncing = false; if (again) { again = false; sync(); } }
+}
+function schedulePush() { if (!cfg.connected) return; clearTimeout(timer); timer = setTimeout(() => sync(), 1500); }
+
+/* 設定画面 */
+$("setBtn").onclick = $("cloud").onclick = () => { $("clientId").value = cfg.clientId; $("setDlg").showModal(); };
+$("setClose").onclick = () => $("setDlg").close();
+$("connBtn").onclick = async () => {
+  cfg.clientId = $("clientId").value.trim(); saveCfg();
+  if (!cfg.clientId) return setStatus("Client IDを入力してください");
+  cfg.connected = true; saveCfg(); token = null; folderId = null;
+  await sync(true);
+  if ($("cloud").textContent.includes("要再接続")) { cfg.connected = false; saveCfg(); }
+};
+$("syncBtn").onclick = async () => { cfg.clientId = $("clientId").value.trim() || cfg.clientId; saveCfg(); if (!cfg.connected) cfg.connected = true; saveCfg(); await sync(true); };
+$("discBtn").onclick = () => {
+  if (token && window.google) try { google.accounts.oauth2.revoke(token); } catch (e) {}
+  token = null; folderId = null; cfg.connected = false; saveCfg(); setStatus("接続を解除しました(端末内のデータは残っています)");
+};
+
+/* 起動時 */
+render(); setStatus(cfg.connected ? "接続設定あり" : "未接続");
+let gsiTries = 0;
+function startSync() {
+  if (!cfg.connected) return;
+  if (!(window.google && google.accounts) && gsiTries++ < 20) return setTimeout(startSync, 500);
+  sync();
+}
+window.addEventListener("load", startSync);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && cfg.connected && !syncing) sync(); });
+if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>
